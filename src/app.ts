@@ -9,7 +9,7 @@ import { globalErrorHandler } from './middleware/errorHandler';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-import authRouter, { permissionsRoute } from './modules/auth/auth.routes';
+import { authRouter ,permissionsRoute } from './modules/auth/auth.routes';
 
 // ── Restaurants & subscriptions ───────────────────────────────────────────
 import restaurantsRouter from './modules/restaurants/restaurants.routes';

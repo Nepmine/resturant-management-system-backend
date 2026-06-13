@@ -63,7 +63,10 @@ export const adjustStockSchema = z.object({
   }),
   body: z.object({
     changeType: z.enum(['add', 'remove', 'adjust']),
-    quantityDelta: z.number().nonzero(),
+    quantityDelta: z.number().refine(
+  (val) => val !== 0,
+  { message: "quantityDelta cannot be zero" }
+),
     note: z.string().max(500).optional(),
   }),
 });
