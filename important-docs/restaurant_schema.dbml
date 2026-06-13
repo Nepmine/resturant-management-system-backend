@@ -1,0 +1,360 @@
+// ============================================================
+// RESTAURANT MANAGEMENT SYSTEM — DBML Schema
+// dbdiagram.io compatible
+// ============================================================
+
+// ─────────────────────────────────────────
+// AUTH & USERS
+// ─────────────────────────────────────────
+
+Table staff {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  name          varchar(100) [not null]
+  email         varchar(150) [unique, not null]
+  role          staff_role  [not null, default: 'staff']  // 'admin' | 'staff'
+  oauth_provider varchar(50) [not null]                    // 'google' etc.
+  oauth_id      varchar(255) [unique, not null]
+  is_active     boolean     [not null, default: true]      // whitelisted by admin
+  created_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz                                // soft delete
+}
+
+// Customers are not real accounts — just a name+phone per dining session
+Table customers {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  session_id    uuid        [not null, ref: > dining_sessions.id]
+  name          varchar(100) [not null]
+  phone         varchar(20)                               // optional
+  created_at    timestamptz [not null, default: `now()`]
+
+  indexes {
+    session_id
+  }
+}
+
+// ─────────────────────────────────────────
+// RESTAURANT & TABLES
+// ─────────────────────────────────────────
+
+Table restaurants {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  name          varchar(150) [not null]
+  address       text
+  created_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+}
+
+Table floors {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  restaurant_id uuid        [not null, ref: > restaurants.id]
+  floor_number  int         [not null]
+  label         varchar(50)                              // e.g. "Ground Floor", "Rooftop"
+  created_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+
+  indexes {
+    (restaurant_id, floor_number) [unique]
+  }
+}
+
+Table tables {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  floor_id      uuid        [not null, ref: > floors.id]
+  table_number  int         [not null]
+  status        table_status [not null, default: 'available']  // 'available' | 'occupied' | 'cleaning'
+  qr_token      varchar(255) [unique, not null]               // encrypted token in QR
+  created_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+
+  indexes {
+    (floor_id, table_number) [unique]
+    qr_token
+  }
+}
+
+// ─────────────────────────────────────────
+// DINING SESSION
+// ─────────────────────────────────────────
+
+Table dining_sessions {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  table_id      uuid        [not null, ref: > tables.id]
+  status        session_status [not null, default: 'active']  // 'active' | 'completed' | 'cancelled'
+  started_at    timestamptz [not null, default: `now()`]
+  completed_at  timestamptz
+  completed_by  uuid        [ref: > staff.id]                 // null = customer clicked "Complete Meal"
+  created_at    timestamptz [not null, default: `now()`]
+
+  indexes {
+    table_id
+    status
+  }
+}
+
+// ─────────────────────────────────────────
+// MENU
+// ─────────────────────────────────────────
+
+Table menu_categories {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  restaurant_id uuid        [not null, ref: > restaurants.id]
+  name          varchar(100) [not null]
+  sort_order    int         [not null, default: 0]
+  created_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+
+  indexes {
+    restaurant_id
+  }
+}
+
+Table menu_items {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  category_id   uuid        [not null, ref: > menu_categories.id]
+  name          varchar(150) [not null]
+  description   text
+  base_price    numeric(10,2) [not null]
+  image_url     text                                     // external URL, not stored
+  is_available  boolean     [not null, default: true]   // staff-controlled visibility
+  disable_note  varchar(255)                             // e.g. "Out of stock today"
+  sort_order    int         [not null, default: 0]
+  created_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+
+  indexes {
+    category_id
+    is_available
+  }
+}
+
+// Variant groups: e.g. "Type" (Steam/Fried/Jhol), "Protein" (Veg/Chicken)
+Table menu_item_option_groups {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  menu_item_id  uuid        [not null, ref: > menu_items.id]
+  name          varchar(100) [not null]                  // e.g. "Type", "Protein"
+  is_required   boolean     [not null, default: true]
+  sort_order    int         [not null, default: 0]
+  deleted_at    timestamptz
+
+  indexes {
+    menu_item_id
+  }
+}
+
+// Individual options within a group: e.g. Steam (+0), Jhol (+30)
+Table menu_item_options {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  group_id      uuid        [not null, ref: > menu_item_option_groups.id]
+  name          varchar(100) [not null]                  // e.g. "Steam", "Chicken"
+  price_modifier numeric(10,2) [not null, default: 0]   // added to base_price
+  sort_order    int         [not null, default: 0]
+  deleted_at    timestamptz
+
+  indexes {
+    group_id
+  }
+}
+
+// ─────────────────────────────────────────
+// ORDERS
+// ─────────────────────────────────────────
+
+Table orders {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  session_id    uuid        [not null, ref: > dining_sessions.id]
+  customer_id   uuid        [not null, ref: > customers.id]
+  is_parcel     boolean     [not null, default: false]
+  status        order_status [not null, default: 'pending']  // 'pending' | 'preparing' | 'completed' | 'cancelled'
+  notes         text                                     // order-level note (future use)
+  created_at    timestamptz [not null, default: `now()`]
+  updated_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+
+  indexes {
+    session_id
+    customer_id
+    status
+  }
+}
+
+Table order_items {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  order_id      uuid        [not null, ref: > orders.id]
+  menu_item_id  uuid        [not null, ref: > menu_items.id]
+  quantity      int         [not null, default: 1]
+  unit_price    numeric(10,2) [not null]                 // snapshot at time of order
+  note          text                                     // e.g. "less spicy, extra chutney"
+  created_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+
+  indexes {
+    order_id
+  }
+}
+
+// Stores which options the customer picked for each order item
+Table order_item_options {
+  id                uuid  [pk, default: `gen_random_uuid()`]
+  order_item_id     uuid  [not null, ref: > order_items.id]
+  menu_item_option_id uuid [not null, ref: > menu_item_options.id]
+  option_name       varchar(100) [not null]              // snapshot
+  price_modifier    numeric(10,2) [not null]             // snapshot
+
+  indexes {
+    order_item_id
+  }
+}
+
+// ─────────────────────────────────────────
+// PAYMENTS
+// ─────────────────────────────────────────
+
+Table payments {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  session_id      uuid        [not null, ref: > dining_sessions.id]
+  customer_id     uuid        [ref: > customers.id]       // null = whole-table payment
+  amount          numeric(10,2) [not null]
+  method          payment_method [not null, default: 'esewa']  // 'esewa' | 'cash' | etc.
+  status          payment_status [not null, default: 'pending'] // 'pending' | 'paid' | 'failed' | 'refunded'
+  esewa_ref_id    varchar(255)                            // eSewa transaction reference
+  esewa_pid       varchar(255)                            // eSewa product ID (for verification)
+  paid_at         timestamptz
+  created_at      timestamptz [not null, default: `now()`]
+
+  indexes {
+    session_id
+    status
+    esewa_ref_id
+  }
+}
+
+// ─────────────────────────────────────────
+// WAITER CALLS & REQUESTS
+// ─────────────────────────────────────────
+
+Table waiter_requests {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  session_id    uuid        [not null, ref: > dining_sessions.id]
+  type          request_type [not null]                   // 'waiter' | 'water' | 'tissue'
+  status        request_status [not null, default: 'pending'] // 'pending' | 'resolved'
+  resolved_by   uuid        [ref: > staff.id]
+  resolved_at   timestamptz
+  created_at    timestamptz [not null, default: `now()`]
+
+  indexes {
+    session_id
+    status
+  }
+}
+
+// ─────────────────────────────────────────
+// INVENTORY
+// ─────────────────────────────────────────
+
+Table inventory_items {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  restaurant_id uuid        [not null, ref: > restaurants.id]
+  name          varchar(150) [not null]
+  unit          varchar(50) [not null]                    // e.g. "kg", "litre", "pcs"
+  quantity      numeric(10,3) [not null, default: 0]
+  low_stock_threshold numeric(10,3) [not null, default: 0]
+  created_at    timestamptz [not null, default: `now()`]
+  updated_at    timestamptz [not null, default: `now()`]
+  deleted_at    timestamptz
+
+  indexes {
+    restaurant_id
+  }
+}
+
+Table inventory_logs {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  item_id       uuid        [not null, ref: > inventory_items.id]
+  changed_by    uuid        [not null, ref: > staff.id]
+  change_type   inv_change_type [not null]                // 'add' | 'remove' | 'adjust'
+  quantity_delta numeric(10,3) [not null]
+  note          text
+  created_at    timestamptz [not null, default: `now()`]
+
+  indexes {
+    item_id
+    created_at
+  }
+}
+
+// ─────────────────────────────────────────
+// ACTIVITY LOGS
+// ─────────────────────────────────────────
+
+Table activity_logs {
+  id            uuid        [pk, default: `gen_random_uuid()`]
+  staff_id      uuid        [not null, ref: > staff.id]
+  action        varchar(100) [not null]                   // e.g. "order.status.updated", "menu_item.hidden"
+  target_type   varchar(50) [not null]                    // e.g. "order", "menu_item"
+  target_id     uuid        [not null]
+  meta          jsonb                                     // any extra context (old/new values)
+  created_at    timestamptz [not null, default: `now()`]
+
+  indexes {
+    staff_id
+    target_type
+    created_at
+  }
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+Enum staff_role {
+  admin
+  staff
+}
+
+Enum table_status {
+  available
+  occupied
+  cleaning
+}
+
+Enum session_status {
+  active
+  completed
+  cancelled
+}
+
+Enum order_status {
+  pending
+  preparing
+  completed
+  cancelled
+}
+
+Enum payment_method {
+  esewa
+  cash
+}
+
+Enum payment_status {
+  pending
+  paid
+  failed
+  refunded
+}
+
+Enum request_type {
+  waiter
+  water
+  tissue
+}
+
+Enum request_status {
+  pending
+  resolved
+}
+
+Enum inv_change_type {
+  add
+  remove
+  adjust
+}
