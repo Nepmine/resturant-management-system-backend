@@ -1,0 +1,879 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// MaHaVi Restaurant SaaS — Prisma Schema
+// Authority: project_memory_v1.md (API Prisma > DBML > any inference)
+// All PKs are Int autoincrement (API Prisma authoritative; DBML used uuid)
+// All soft-deletable tables carry deleted_at — NEVER hard-delete those rows
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS  (§B1 — API Prisma is authoritative; DBML variants noted inline)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SubscriptionPlan {
+  trial
+  monthly
+  yearly
+}
+
+enum SubscriptionStatus {
+  active
+  grace_period
+  expired
+  cancelled
+}
+
+/// DBML had: admin | staff (no manager)
+enum StaffRole {
+  staff
+  manager
+  admin
+}
+
+enum TableStatus {
+  available
+  occupied
+  cleaning
+}
+
+/// DBML had: active | completed | cancelled  →  API renames cancelled→abandoned
+enum SessionStatus {
+  active
+  completed
+  abandoned
+}
+
+enum OrderType {
+  dine_in
+  parcel
+}
+
+/// DBML had 4 values; API adds confirmed + ready + delivered
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready
+  delivered
+  cancelled
+}
+
+enum ItemStatus {
+  pending
+  preparing
+  ready
+  delivered
+  cancelled
+}
+
+/// DBML had: pending | paid | failed | refunded  →  paid→completed
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum PaymentMethod {
+  esewa
+  cash
+}
+
+/// DBML had: waiter | water | tissue  →  renamed
+enum RequestType {
+  call_waiter
+  request_water
+  request_tissue
+}
+
+/// DBML had: pending | resolved  →  API adds acknowledged
+enum RequestStatus {
+  pending
+  acknowledged
+  resolved
+}
+
+enum BillType {
+  electricity
+  rent
+  water
+  internet
+  other
+}
+
+enum BillStatus {
+  unpaid
+  paid
+  overdue
+}
+
+enum InvChangeType {
+  add
+  remove
+  adjust
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Restaurant ──────────────────────────────────────────────────────────────
+
+model Restaurant {
+  id           Int      @id @default(autoincrement())
+  name         VARCHAR(150)
+  address      String?  @db.Text
+  /// Added by API design for subscription billing
+  billingEmail String?  @map("billing_email") @db.VarChar(150)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  branches      Branch[]
+  subscriptions Subscription[]
+  staff         StaffUser[]
+  notifications Notification[]
+
+  @@map("restaurants")
+}
+
+// ── Subscription ────────────────────────────────────────────────────────────
+// Not in DBML — fully defined by API design. The tenant gate.
+
+model Subscription {
+  id             Int                @id @default(autoincrement())
+  restaurantId   Int                @map("restaurant_id")
+  plan           SubscriptionPlan   @default(trial)
+  status         SubscriptionStatus @default(active)
+  maxBranches    Int                @default(1) @map("max_branches")
+  startedAt      DateTime           @default(now()) @map("started_at") @db.Timestamptz()
+  expiresAt      DateTime?          @map("expires_at") @db.Timestamptz()
+  graceExpiresAt DateTime?          @map("grace_expires_at") @db.Timestamptz()
+  cancelledAt    DateTime?          @map("cancelled_at") @db.Timestamptz()
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId, status])
+  @@map("subscriptions")
+}
+
+// ── Branch ───────────────────────────────────────────────────────────────────
+// Not in DBML — defined in API design. All analytics, orders, staff are branch-scoped.
+
+model Branch {
+  id           Int      @id @default(autoincrement())
+  restaurantId Int      @map("restaurant_id")
+  name         String   @db.VarChar(150)
+  address      String?  @db.Text
+  phone        String?  @db.VarChar(20)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  restaurant         Restaurant          @relation(fields: [restaurantId], references: [id])
+  staff              StaffUser[]
+  sections           Section[]
+  tables             Table[]
+  menuCategories     MenuCategory[]
+  orders             Order[]
+  diningSessions     DiningSession[]
+  inventoryCategories InventoryCategory[]
+  inventoryItems     InventoryItem[]
+  bills              Bill[]
+  invoiceReferences  InvoiceReference[]
+  dailyBranchMetrics DailyBranchMetric[]
+  dailyItemMetrics   DailyItemMetric[]
+  staffDailyMetrics  StaffDailyMetric[]
+  notifications      Notification[]
+  waiterRequests     WaiterRequest[]
+  activityLogs       ActivityLog[]
+  customerFeedback   CustomerFeedback[]
+
+  @@index([restaurantId])
+  @@map("branches")
+}
+
+// ── StaffUser ────────────────────────────────────────────────────────────────
+// DBML: staff table; API: staff_users; role enum expanded to staff|manager|admin
+
+model StaffUser {
+  id            Int       @id @default(autoincrement())
+  restaurantId  Int       @map("restaurant_id")
+  /// Nullable: admin role may not be scoped to a specific branch
+  branchId      Int?      @map("branch_id")
+  name          String    @db.VarChar(100)
+  email         String    @unique @db.VarChar(150)
+  role          StaffRole @default(staff)
+  oauthProvider String    @map("oauth_provider") @db.VarChar(50)
+  /// Set on first Google login
+  oauthId       String?   @unique @map("oauth_id") @db.VarChar(255)
+  /// Whitelist flag — re-checked on every request
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  restaurant      Restaurant         @relation(fields: [restaurantId], references: [id])
+  branch          Branch?            @relation(fields: [branchId], references: [id])
+  /// Orders accepted/confirmed by this staff member
+  acceptedOrders  Order[]            @relation("AcceptedBy")
+  inventoryLogs   InventoryLog[]
+  activityLogs    ActivityLog[]
+  staffDailyMetrics StaffDailyMetric[]
+  refreshTokens   RefreshToken[]
+  loginHistory    LoginHistory[]
+  notifications   Notification[]
+  resolvedRequests WaiterRequest[]   @relation("ResolvedBy")
+
+  @@map("staff_users")
+}
+
+// ── Section (formerly Floor) ─────────────────────────────────────────────────
+// DBML: floors; API: sections. Parent changed from restaurant → branch.
+
+model Section {
+  id        Int      @id @default(autoincrement())
+  branchId  Int      @map("branch_id")
+  name      String   @db.VarChar(100)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  branch Branch  @relation(fields: [branchId], references: [id])
+  tables Table[]
+
+  @@index([branchId, sortOrder])
+  @@map("sections")
+}
+
+// ── Table ────────────────────────────────────────────────────────────────────
+// qr_token: crypto.randomBytes(32).toString('hex') — 64-char hex, 256-bit entropy
+// Status transitions ONLY via dedicated endpoints — never via generic PATCH
+
+model Table {
+  id          Int         @id @default(autoincrement())
+  sectionId   Int         @map("section_id")
+  /// Denormalized for fast branch-scoped queries (API requirement)
+  branchId    Int         @map("branch_id")
+  tableNumber Int         @map("table_number")
+  label       String?     @db.VarChar(50)
+  status      TableStatus @default(available)
+  /// 64-char hex string; regenerated ONLY via POST /tables/:id/regenerate-qr
+  qrToken     String      @unique @map("qr_token") @db.VarChar(255)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt   DateTime?   @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  section       Section         @relation(fields: [sectionId], references: [id])
+  branch        Branch          @relation(fields: [branchId], references: [id])
+  diningSessions DiningSession[]
+
+  @@unique([sectionId, tableNumber])
+  @@index([qrToken])
+  @@index([branchId, status])
+  @@map("tables")
+}
+
+// ── DiningSession ────────────────────────────────────────────────────────────
+// Created ONLY via POST /customer/qr/scan (atomic transaction)
+// Partial unique index enforced in migration: CREATE UNIQUE INDEX
+//   dining_sessions_one_active_per_table ON dining_sessions(table_id) WHERE status = 'active'
+
+model DiningSession {
+  id          Int           @id @default(autoincrement())
+  tableId     Int           @map("table_id")
+  /// Denormalized — set at creation; never changes
+  branchId    Int           @map("branch_id")
+  status      SessionStatus @default(active)
+  startedAt   DateTime      @default(now()) @map("started_at") @db.Timestamptz()
+  completedAt DateTime?     @map("completed_at") @db.Timestamptz()
+  /// null = customer completed via app; populated when staff closes the session
+  completedBy Int?          @map("completed_by")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  table            Table              @relation(fields: [tableId], references: [id])
+  branch           Branch             @relation(fields: [branchId], references: [id])
+  members          SessionMember[]
+  orders           Order[]
+  payments         Payment[]
+  invoiceReferences InvoiceReference[]
+  customerFeedback CustomerFeedback[]
+
+  @@index([branchId, status])
+  @@index([tableId, status])
+  @@map("dining_sessions")
+}
+
+// ── SessionMember ─────────────────────────────────────────────────────────────
+// DBML: customers table — renamed to session_members (API authoritative)
+// Multiple customers can scan the same QR and join one session
+
+model SessionMember {
+  id        Int      @id @default(autoincrement())
+  sessionId Int      @map("session_id")
+  name      String   @db.VarChar(100)
+  phone     String?  @db.VarChar(20)
+  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz()
+
+  // Relations
+  session  DiningSession @relation(fields: [sessionId], references: [id])
+  orders   Order[]
+  payments Payment[]
+
+  @@index([sessionId])
+  @@map("session_members")
+}
+
+// ── MenuCategory ──────────────────────────────────────────────────────────────
+// CONFLICT: DBML scoped to restaurant_id; API scopes to branch_id
+
+model MenuCategory {
+  id        Int      @id @default(autoincrement())
+  branchId  Int      @map("branch_id")
+  name      String   @db.VarChar(100)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  branch Branch     @relation(fields: [branchId], references: [id])
+  items  MenuItem[]
+
+  @@index([branchId])
+  @@map("menu_categories")
+}
+
+// ── MenuItem ──────────────────────────────────────────────────────────────────
+
+model MenuItem {
+  id           Int      @id @default(autoincrement())
+  categoryId   Int      @map("category_id")
+  name         String   @db.VarChar(150)
+  description  String?  @db.Text
+  basePrice    Decimal  @map("base_price") @db.Decimal(10, 2)
+  /// External URL only — not stored locally
+  imageUrl     String?  @map("image_url") @db.Text
+  isAvailable  Boolean  @default(true) @map("is_available")
+  /// Shown to customers when item is hidden, e.g. "Out of stock today"
+  disableNote  String?  @map("disable_note") @db.VarChar(255)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  category     MenuCategory          @relation(fields: [categoryId], references: [id])
+  optionGroups MenuItemOptionGroup[]
+  orderItems   OrderItem[]
+  dailyItemMetrics DailyItemMetric[]
+
+  @@index([categoryId])
+  @@index([isAvailable])
+  @@map("menu_items")
+}
+
+// ── MenuItemOptionGroup (Variant Groups) ──────────────────────────────────────
+// e.g. "Type" (Steam/Fried/Jhol), "Protein" (Veg/Chicken)
+
+model MenuItemOptionGroup {
+  id         Int      @id @default(autoincrement())
+  menuItemId Int      @map("menu_item_id")
+  name       String   @db.VarChar(100)
+  isRequired Boolean  @default(true) @map("is_required")
+  sortOrder  Int      @default(0) @map("sort_order")
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  menuItem MenuItem          @relation(fields: [menuItemId], references: [id])
+  options  MenuItemOption[]
+
+  @@index([menuItemId])
+  @@map("menu_item_option_groups")
+}
+
+// ── MenuItemOption (Individual Options) ──────────────────────────────────────
+// e.g. Steam (+0), Jhol (+30)
+
+model MenuItemOption {
+  id            Int      @id @default(autoincrement())
+  groupId       Int      @map("group_id")
+  name          String   @db.VarChar(100)
+  /// Added to base_price at order time; snapshotted into order_items
+  priceModifier Decimal  @default(0) @map("price_modifier") @db.Decimal(10, 2)
+  sortOrder     Int      @default(0) @map("sort_order")
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  group            MenuItemOptionGroup @relation(fields: [groupId], references: [id])
+  orderItems       OrderItem[]         @relation("VariantOption")
+  orderItemOptions OrderItemOption[]
+
+  @@index([groupId])
+  @@map("menu_item_options")
+}
+
+// ── Order ─────────────────────────────────────────────────────────────────────
+// CONFLICT resolutions (see §I):
+//   session_id: nullable (parcel orders have no session)
+//   member_id: replaces customer_id; nullable (parcel orders have no member)
+//   branch_id: denormalized, NOT NULL, set immutably at creation
+//   status: 6 values (pending|confirmed|preparing|ready|delivered|cancelled)
+//   accepted_by_staff_id: set on pending→confirmed transition only
+
+model Order {
+  id                Int         @id @default(autoincrement())
+  /// null for parcel orders
+  sessionId         Int?        @map("session_id")
+  /// Denormalized — set at creation, never changes
+  branchId          Int         @map("branch_id")
+  /// null for parcel/staff-placed orders
+  memberId          Int?        @map("member_id")
+  /// Set when staff confirms the order (pending→confirmed transition)
+  acceptedByStaffId Int?        @map("accepted_by_staff_id")
+  orderType         OrderType   @default(dine_in) @map("order_type")
+  isParcel          Boolean     @default(false) @map("is_parcel")
+  /// Parcel order customer fields (null for dine-in)
+  customerName      String?     @map("customer_name") @db.VarChar(150)
+  customerPhone     String?     @map("customer_phone") @db.VarChar(20)
+  /// DERIVED from item statuses — only set directly for pending→confirmed
+  status            OrderStatus @default(pending)
+  note              String?     @db.Text
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt         DateTime?   @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  session    DiningSession? @relation(fields: [sessionId], references: [id])
+  branch     Branch         @relation(fields: [branchId], references: [id])
+  member     SessionMember? @relation(fields: [memberId], references: [id])
+  acceptedBy StaffUser?     @relation("AcceptedBy", fields: [acceptedByStaffId], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+  invoiceReferences InvoiceReference[]
+
+  @@index([branchId, status])
+  @@index([branchId, orderType])
+  @@index([branchId, createdAt])
+  @@index([sessionId])
+  @@map("orders")
+}
+
+// ── OrderItem ────────────────────────────────────────────────────────────────
+// Prices + names are SNAPSHOTTED at creation — menu changes never affect history
+
+model OrderItem {
+  id                  Int        @id @default(autoincrement())
+  orderId             Int        @map("order_id")
+  menuItemId          Int        @map("menu_item_id")
+  /// Primary variant selection (nullable — item may have no variant)
+  variantId           Int?       @map("variant_id")
+  quantity            Int        @default(1)
+  /// Snapshot: basePrice + variantPriceModifier at time of order
+  unitPrice           Decimal    @map("unit_price") @db.Decimal(10, 2)
+  /// Immutable snapshot of menu item name
+  itemNameSnapshot    String     @map("item_name_snapshot") @db.VarChar(150)
+  /// Immutable snapshot of variant name (null if no variant)
+  variantNameSnapshot String?    @map("variant_name_snapshot") @db.VarChar(100)
+  status              ItemStatus @default(pending)
+  note                String?    @db.Text
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt           DateTime?  @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  order   Order           @relation(fields: [orderId], references: [id])
+  menuItem MenuItem       @relation(fields: [menuItemId], references: [id])
+  variant MenuItemOption? @relation("VariantOption", fields: [variantId], references: [id])
+  options OrderItemOption[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ── OrderItemOption ───────────────────────────────────────────────────────────
+// Multi-option join table for when a customer picks options from multiple groups.
+// Fields are fully snapshotted — option edits never affect history.
+
+model OrderItemOption {
+  id               Int     @id @default(autoincrement())
+  orderItemId      Int     @map("order_item_id")
+  menuItemOptionId Int     @map("menu_item_option_id")
+  /// Snapshot of option name at order time
+  optionName       String  @map("option_name") @db.VarChar(100)
+  /// Snapshot of price modifier at order time
+  priceModifier    Decimal @map("price_modifier") @db.Decimal(10, 2)
+
+  // Relations
+  orderItem      OrderItem      @relation(fields: [orderItemId], references: [id])
+  menuItemOption MenuItemOption @relation(fields: [menuItemOptionId], references: [id])
+
+  @@index([orderItemId])
+  @@map("order_item_options")
+}
+
+// ── Payment ───────────────────────────────────────────────────────────────────
+// APPEND-ONLY. Never update existing rows. Refund = new row with negative amount.
+// CONFLICT: DBML had status 'paid' → API has 'completed'
+
+model Payment {
+  id          Int           @id @default(autoincrement())
+  sessionId   Int           @map("session_id")
+  /// null = whole-table payment not linked to a single order
+  orderId     Int?          @map("order_id")
+  /// null = payment covers whole table, not a specific member
+  memberId    Int?          @map("member_id")
+  amount      Decimal       @db.Decimal(10, 2)
+  method      PaymentMethod
+  status      PaymentStatus @default(pending)
+  /// eSewa transaction reference
+  esewaRefId  String?       @map("esewa_ref_id") @db.VarChar(255)
+  /// eSewa product ID for verification
+  esewaPid    String?       @map("esewa_pid") @db.VarChar(255)
+  paidAt      DateTime?     @map("paid_at") @db.Timestamptz()
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  session DiningSession  @relation(fields: [sessionId], references: [id])
+  order   Order?         @relation(fields: [orderId], references: [id])
+  member  SessionMember? @relation(fields: [memberId], references: [id])
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([esewaRefId])
+  @@map("payments")
+}
+
+// ── WaiterRequest ────────────────────────────────────────────────────────────
+// CONFLICT: type enum renamed; status enum adds 'acknowledged'
+
+model WaiterRequest {
+  id             Int           @id @default(autoincrement())
+  sessionId      Int           @map("session_id")
+  branchId       Int           @map("branch_id")
+  type           RequestType
+  status         RequestStatus @default(pending)
+  resolvedById   Int?          @map("resolved_by")
+  resolvedAt     DateTime?     @map("resolved_at") @db.Timestamptz()
+  acknowledgedAt DateTime?     @map("acknowledged_at") @db.Timestamptz()
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  branch     Branch    @relation(fields: [branchId], references: [id])
+  resolvedBy StaffUser? @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  @@index([sessionId])
+  @@index([status])
+  @@map("waiter_requests")
+}
+
+// ── InventoryCategory ─────────────────────────────────────────────────────────
+
+model InventoryCategory {
+  id        Int      @id @default(autoincrement())
+  branchId  Int      @map("branch_id")
+  name      String   @db.VarChar(80)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  branch Branch          @relation(fields: [branchId], references: [id])
+  items  InventoryItem[]
+
+  @@index([branchId, sortOrder])
+  @@map("inventory_categories")
+}
+
+// ── InventoryItem ─────────────────────────────────────────────────────────────
+// CONFLICT: DBML was restaurant-scoped; API scopes to branch
+// Inventory is MANUAL-ONLY — no automatic deduction (v1 scope decision)
+
+model InventoryItem {
+  id                 Int      @id @default(autoincrement())
+  branchId           Int      @map("branch_id")
+  categoryId         Int?     @map("category_id")
+  name               String   @db.VarChar(150)
+  /// e.g. "kg", "litre", "pcs"
+  unit               String   @db.VarChar(50)
+  quantity           Decimal  @default(0) @db.Decimal(10, 3)
+  /// Triggers low-stock alerts when quantity ≤ this value
+  lowStockThreshold  Decimal  @default(0) @map("low_stock_threshold") @db.Decimal(10, 3)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  branch   Branch             @relation(fields: [branchId], references: [id])
+  category InventoryCategory? @relation(fields: [categoryId], references: [id])
+  logs     InventoryLog[]
+
+  @@index([branchId])
+  @@map("inventory_items")
+}
+
+// ── InventoryLog ──────────────────────────────────────────────────────────────
+
+model InventoryLog {
+  id             Int           @id @default(autoincrement())
+  itemId         Int           @map("item_id")
+  changedById    Int           @map("changed_by")
+  changeType     InvChangeType @map("change_type")
+  /// Positive = added, negative = removed
+  quantityDelta  Decimal       @map("quantity_delta") @db.Decimal(10, 3)
+  note           String?       @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  item      InventoryItem @relation(fields: [itemId], references: [id])
+  changedBy StaffUser     @relation(fields: [changedById], references: [id])
+
+  @@index([itemId])
+  @@index([createdAt])
+  @@map("inventory_logs")
+}
+
+// ── ActivityLog ───────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  staffId    Int      @map("staff_id")
+  branchId   Int?     @map("branch_id")
+  /// e.g. "order.status.updated", "menu_item.hidden"
+  action     String   @db.VarChar(100)
+  /// e.g. "order_placed", "item_cancelled"
+  actionType String   @map("action_type") @db.VarChar(50)
+  /// e.g. "order", "menu_item"
+  targetType String   @map("target_type") @db.VarChar(50)
+  targetId   Int      @map("target_id")
+  /// old/new values or any extra context
+  meta       Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  staff  StaffUser @relation(fields: [staffId], references: [id])
+  branch Branch?   @relation(fields: [branchId], references: [id])
+
+  @@index([staffId])
+  @@index([targetType])
+  @@index([createdAt])
+  @@index([branchId])
+  @@map("activity_logs")
+}
+
+// ── Bill ──────────────────────────────────────────────────────────────────────
+
+model Bill {
+  id        Int        @id @default(autoincrement())
+  branchId  Int        @map("branch_id")
+  type      BillType
+  status    BillStatus @default(unpaid)
+  amount    Decimal    @db.Decimal(12, 2)
+  dueDate   DateTime   @map("due_date") @db.Date
+  paidDate  DateTime?  @map("paid_date") @db.Date
+  note      String?    @db.Text
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  deletedAt DateTime?  @map("deleted_at") @db.Timestamptz()
+
+  // Relations
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([branchId, status])
+  @@index([branchId, dueDate])
+  @@map("bills")
+}
+
+// ── InvoiceReference ──────────────────────────────────────────────────────────
+// Invoices are generated ON-DEMAND (not stored). This table tracks issued numbers only.
+
+model InvoiceReference {
+  id            Int      @id @default(autoincrement())
+  /// e.g. INV-2025-3-00042  (INV-{YYYY}-{branchId}-{NNNNN})
+  invoiceNumber String   @unique @map("invoice_number") @db.VarChar(30)
+  sessionId     Int?     @map("session_id")
+  /// null = session invoice; populated = single-order invoice
+  orderId       Int?     @map("order_id")
+  branchId      Int      @map("branch_id")
+  totalAmount   Decimal  @map("total_amount") @db.Decimal(12, 2)
+  issuedAt      DateTime @default(now()) @map("issued_at") @db.Timestamptz()
+  /// Customer name for parcel orders
+  issuedTo      String?  @map("issued_to") @db.VarChar(150)
+
+  // Relations
+  session DiningSession? @relation(fields: [sessionId], references: [id])
+  order   Order?         @relation(fields: [orderId], references: [id])
+  branch  Branch         @relation(fields: [branchId], references: [id])
+
+  @@index([branchId, issuedAt])
+  @@index([sessionId])
+  @@index([orderId])
+  @@map("invoice_references")
+}
+
+// ── DailyBranchMetric ─────────────────────────────────────────────────────────
+// Populated by snapshotMetrics job at 00:05 daily.
+// All analytics endpoints EXCEPT /peak-hours read from this table — never raw orders.
+
+model DailyBranchMetric {
+  id                 Int      @id @default(autoincrement())
+  branchId           Int      @map("branch_id")
+  snapshotDate       DateTime @map("snapshot_date") @db.Date
+  totalRevenue       Decimal  @default(0) @map("total_revenue") @db.Decimal(12, 2)
+  cashRevenue        Decimal  @default(0) @map("cash_revenue") @db.Decimal(12, 2)
+  onlineRevenue      Decimal  @default(0) @map("online_revenue") @db.Decimal(12, 2)
+  totalOrders        Int      @default(0) @map("total_orders")
+  cancelledOrders    Int      @default(0) @map("cancelled_orders")
+  dineinOrders       Int      @default(0) @map("dinein_orders")
+  parcelOrders       Int      @default(0) @map("parcel_orders")
+  totalSessions      Int      @default(0) @map("total_sessions")
+  totalCustomers     Int      @default(0) @map("total_customers")
+  avgOrderValue      Decimal? @map("avg_order_value") @db.Decimal(10, 2)
+  completedPayments  Int      @default(0) @map("completed_payments")
+
+  // Relations
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, snapshotDate])
+  @@map("daily_branch_metrics")
+}
+
+// ── DailyItemMetric ───────────────────────────────────────────────────────────
+
+model DailyItemMetric {
+  id               Int      @id @default(autoincrement())
+  branchId         Int      @map("branch_id")
+  menuItemId       Int      @map("menu_item_id")
+  snapshotDate     DateTime @map("snapshot_date") @db.Date
+  quantitySold     Int      @default(0) @map("quantity_sold")
+  revenueGenerated Decimal  @default(0) @map("revenue_generated") @db.Decimal(12, 2)
+
+  // Relations
+  branch   Branch   @relation(fields: [branchId], references: [id])
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@unique([branchId, menuItemId, snapshotDate])
+  @@index([branchId, snapshotDate])
+  @@map("daily_item_metrics")
+}
+
+// ── StaffDailyMetric ──────────────────────────────────────────────────────────
+
+model StaffDailyMetric {
+  id                          Int      @id @default(autoincrement())
+  staffId                     Int      @map("staff_id")
+  branchId                    Int      @map("branch_id")
+  snapshotDate                DateTime @map("snapshot_date") @db.Date
+  ordersHandled               Int      @default(0) @map("orders_handled")
+  sessionsHandled             Int      @default(0) @map("sessions_handled")
+  salesAmount                 Decimal  @default(0) @map("sales_amount") @db.Decimal(12, 2)
+  cancelledOrders             Int      @default(0) @map("cancelled_orders")
+  avgOrderCompletionSeconds   Int?     @map("avg_order_completion_seconds")
+
+  // Relations
+  staff  StaffUser @relation(fields: [staffId], references: [id])
+  branch Branch    @relation(fields: [branchId], references: [id])
+
+  @@unique([staffId, snapshotDate])
+  @@index([branchId, snapshotDate])
+  @@map("staff_daily_metrics")
+}
+
+// ── Notification ──────────────────────────────────────────────────────────────
+// Delivery: HTTP polling (Phase 1). GET /notifications?updatedAfter= every 10s.
+// type values: low_stock | waiter_called | sub_expiring | bill_overdue |
+//              staff_invited | meal_completed | abandoned_session_with_orders
+
+model Notification {
+  id            BigInt   @id @default(autoincrement())
+  restaurantId  Int      @map("restaurant_id")
+  branchId      Int?     @map("branch_id")
+  staffId       Int?     @map("staff_id")
+  type          String   @db.VarChar(50)
+  title         String   @db.VarChar(150)
+  message       String?  @db.Text
+  /// e.g. "inventory_item", "waiter_request"
+  referenceType String?  @map("reference_type") @db.VarChar(30)
+  referenceId   Int?     @map("reference_id")
+  isRead        Boolean  @default(false) @map("is_read")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  branch     Branch?    @relation(fields: [branchId], references: [id])
+  staff      StaffUser? @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, isRead, createdAt])
+  @@index([branchId, createdAt])
+  @@map("notifications")
+}
+
+// ── RefreshToken ──────────────────────────────────────────────────────────────
+// SHA-256 hashed. Family tracking for reuse detection + logout-everywhere.
+
+model RefreshToken {
+  id        BigInt    @id @default(autoincrement())
+  staffId   Int       @map("staff_id")
+  /// All tokens in the same login session share a familyId
+  familyId  String    @map("family_id") @db.Uuid
+  /// SHA-256 hex of the raw token
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz()
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  staff StaffUser @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, revokedAt])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+// ── LoginHistory ──────────────────────────────────────────────────────────────
+
+model LoginHistory {
+  id             BigInt    @id @default(autoincrement())
+  /// null on failed attempts when no staff row matched
+  staffId        Int?      @map("staff_id")
+  /// Populated on failed login attempts
+  attemptedEmail String?   @map("attempted_email") @db.VarChar(150)
+  ipAddress      String?   @map("ip_address") @db.Inet
+  userAgent      String?   @map("user_agent") @db.Text
+  loginAt        DateTime  @default(now()) @map("login_at") @db.Timestamptz()
+  logoutAt       DateTime? @map("logout_at") @db.Timestamptz()
+  success        Boolean   @default(true)
+
+  // Relations
+  staff StaffUser? @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, loginAt])
+  @@map("login_history")
+}
+
+// ── CustomerFeedback ──────────────────────────────────────────────────────────
+
+model CustomerFeedback {
+  id        Int      @id @default(autoincrement())
+  sessionId Int      @map("session_id")
+  branchId  Int      @map("branch_id")
+  rating    Int      @db.SmallInt
+  comment   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  session DiningSession @relation(fields: [sessionId], references: [id])
+  branch  Branch        @relation(fields: [branchId], references: [id])
+
+  @@index([sessionId])
+  @@map("customer_feedback")
+}
