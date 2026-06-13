@@ -129,7 +129,7 @@ enum InvChangeType {
 
 model Restaurant {
   id           Int      @id @default(autoincrement())
-  name         VARCHAR(150)
+  name         String    @db.VarChar(150)
   address      String?  @db.Text
   /// Added by API design for subscription billing
   billingEmail String?  @map("billing_email") @db.VarChar(150)
