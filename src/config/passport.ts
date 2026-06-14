@@ -99,6 +99,7 @@ async function verifyGoogleProfile(
 
 export function configurePassport(): void {
   passport.use(
+    'google',
     new GoogleStrategy(
       {
         clientID: env.GOOGLE_CLIENT_ID,
@@ -118,3 +119,6 @@ export function configurePassport(): void {
   passport.serializeUser((user, done) => done(null, user));
   passport.deserializeUser((user, done) => done(null, user as Express.User));
 }
+
+// Register the Google strategy as soon as this module is imported.
+configurePassport();
