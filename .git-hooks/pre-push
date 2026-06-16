@@ -1,38 +1,56 @@
 #!/bin/sh
 
-# ╔══════════════════════════════════════════════════════════════╗
-# ║                                                              ║
-# ║    ███╗   ███╗ █████╗ ██╗  ██╗ █████╗ ██╗   ██╗██╗         ║
-# ║    ████╗ ████║██╔══██╗██║  ██║██╔══██╗██║   ██║██║         ║
-# ║    ██╔████╔██║███████║███████║███████║██║   ██║██║         ║
-# ║    ██║╚██╔╝██║██╔══██║██╔══██║██╔══██║╚██╗ ██╔╝██║         ║
-# ║    ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██║ ╚████╔╝██║         ║
-# ║    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝ ╚═╝         ║
-# ║                                                              ║
-# ║                  Branch Naming Check                         ║
-# ╚══════════════════════════════════════════════════════════════╝
+echo "   ╔══════════════════════════════════════════════════════════╗"
+echo "   ║                                                          ║"
+echo "   ║    ███╗   ███╗ █████╗ ██╗  ██╗ █████╗ ██╗   ██╗██╗     ║"
+echo "   ║    ████╗ ████║██╔══██╗██║  ██║██╔══██╗██║   ██║██║     ║"
+echo "   ║    ██╔████╔██║███████║███████║███████║██║   ██║██║     ║"
+echo "   ║    ██║╚██╔╝██║██╔══██║██╔══██║██╔══██║╚██╗ ██╔╝██║     ║"
+echo "   ║    ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██║ ╚████╔╝ ██║     ║"
+echo "   ║    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝     ║"
+echo "   ║                                                          ║"
+echo "   ╚══════════════════════════════════════════════════════════╝"
 
 BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+REMOTE_REF=$4
 
-# ── Allowed patterns ──────────────────────────────────────────────────────────
-#
-#   main, master, develop, dev, staging
-#   feature/short-description
-#   fix/short-description
-#   hotfix/short-description
-#   release/1.0.0
-#   chore/short-description
-#   refactor/short-description
-#
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Block direct push to main ─────────────────────────────────────────────────
 
-VALID_PATTERN='^(main|master|develop|dev|staging)$|^(feature|fix|hotfix|release|chore|refactor)/[a-z0-9][a-z0-9-]*[a-z0-9]$'
+if [ "$BRANCH" = "main" ] || echo "$REMOTE_REF" | grep -q "refs/heads/main"; then
+  echo ""
+  echo "  ┌─────────────────────────────────────────────────────────┐"
+  echo "  │             Direct push to main is restricted 🔒         │"
+  echo "  └─────────────────────────────────────────────────────────┘"
+  echo ""
+  echo "  This is enforced both locally and on GitHub."
+  echo "  Please push to a feature branch and open a Pull Request."
+  echo ""
+  echo "  ──────────────────────────────────────────────────────────"
+  echo "  HOW TO FIX THIS"
+  echo "  ──────────────────────────────────────────────────────────"
+  echo ""
+  echo "    1. Create a feature branch from your current work:"
+  echo ""
+  echo "         git checkout -b feature/your-branch-name"
+  echo ""
+  echo "    2. Push the feature branch:"
+  echo ""
+  echo "         git push origin feature/your-branch-name"
+  echo ""
+  echo "    3. Open a Pull Request on GitHub to merge into main."
+  echo ""
+  echo "  ──────────────────────────────────────────────────────────"
+  echo ""
+  exit 1
+fi
+
+# ── Branch naming check ───────────────────────────────────────────────────────
+
+VALID_PATTERN='^(master|develop|dev|staging)$|^(feature|fix|hotfix|release|chore|refactor)/[a-z0-9][a-z0-9-]*[a-z0-9]$'
 
 if echo "$BRANCH" | grep -qE "$VALID_PATTERN"; then
   exit 0
 fi
-
-# ── Push blocked ──────────────────────────────────────────────────────────────
 
 echo ""
 echo "  ┌─────────────────────────────────────────────────────────┐"
@@ -52,18 +70,6 @@ echo "    hotfix/critical-issue-name"
 echo "    release/1.0.0"
 echo "    chore/task-description"
 echo "    refactor/what-you-refactored"
-echo ""
-echo "  Protected branches (no prefix needed):"
-echo "    main  ·  master  ·  develop  ·  dev  ·  staging"
-echo ""
-echo "  ──────────────────────────────────────────────────────────"
-echo "  RULES"
-echo "  ──────────────────────────────────────────────────────────"
-echo ""
-echo "    ✓  Use one of the prefixes above followed by /"
-echo "    ✓  Lowercase letters, numbers, and hyphens only"
-echo "    ✓  No spaces, underscores, or special characters"
-echo "    ✓  Description must start and end with a letter or number"
 echo ""
 echo "  ──────────────────────────────────────────────────────────"
 echo "  HOW TO RENAME YOUR BRANCH"

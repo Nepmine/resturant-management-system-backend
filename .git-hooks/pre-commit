@@ -1,0 +1,43 @@
+#!/bin/sh
+
+echo "   ╔══════════════════════════════════════════════════════════╗"
+echo "   ║                                                          ║"
+echo "   ║    ███╗   ███╗ █████╗ ██╗  ██╗ █████╗ ██╗   ██╗██╗     ║"
+echo "   ║    ████╗ ████║██╔══██╗██║  ██║██╔══██╗██║   ██║██║     ║"
+echo "   ║    ██╔████╔██║███████║███████║███████║██║   ██║██║     ║"
+echo "   ║    ██║╚██╔╝██║██╔══██║██╔══██║██╔══██║╚██╗ ██╔╝██║     ║"
+echo "   ║    ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██║ ╚████╔╝ ██║     ║"
+echo "   ║    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝     ║"
+echo "   ║                                                          ║"
+echo "   ╚══════════════════════════════════════════════════════════╝"
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+if [ "$BRANCH" != "main" ]; then
+  exit 0
+fi
+
+echo ""
+echo "  ┌─────────────────────────────────────────────────────────┐"
+echo "  │                  ⚠  Hold on a second                    │"
+echo "  └─────────────────────────────────────────────────────────┘"
+echo ""
+echo "  You are about to commit directly to  →  main"
+echo ""
+echo "  Direct commits to main are not allowed in MaHaVi."
+echo "  Please work on a feature branch instead."
+echo ""
+echo "  ──────────────────────────────────────────────────────────"
+echo "  MOVE YOUR CHANGES TO A FEATURE BRANCH"
+echo "  ──────────────────────────────────────────────────────────"
+echo ""
+echo "    1. Create and switch to a feature branch:"
+echo ""
+echo "         git checkout -b feature/your-branch-name"
+echo ""
+echo "    2. Now commit and push normally."
+echo ""
+echo "  ──────────────────────────────────────────────────────────"
+echo ""
+
+exit 1
