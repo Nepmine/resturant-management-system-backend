@@ -1,0 +1,78 @@
+#!/bin/sh
+
+# ╔══════════════════════════════════════════════════════════════╗
+# ║                                                              ║
+# ║    ███╗   ███╗ █████╗ ██╗  ██╗ █████╗ ██╗   ██╗██╗         ║
+# ║    ████╗ ████║██╔══██╗██║  ██║██╔══██╗██║   ██║██║         ║
+# ║    ██╔████╔██║███████║███████║███████║██║   ██║██║         ║
+# ║    ██║╚██╔╝██║██╔══██║██╔══██║██╔══██║╚██╗ ██╔╝██║         ║
+# ║    ██║ ╚═╝ ██║██║  ██║██║  ██║██║  ██║ ╚████╔╝██║         ║
+# ║    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝ ╚═╝         ║
+# ║                                                              ║
+# ║                  Branch Naming Check                         ║
+# ╚══════════════════════════════════════════════════════════════╝
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# ── Allowed patterns ──────────────────────────────────────────────────────────
+#
+#   main, master, develop, dev, staging
+#   feature/short-description
+#   fix/short-description
+#   hotfix/short-description
+#   release/1.0.0
+#   chore/short-description
+#   refactor/short-description
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+VALID_PATTERN='^(main|master|develop|dev|staging)$|^(feature|fix|hotfix|release|chore|refactor)/[a-z0-9][a-z0-9-]*[a-z0-9]$'
+
+if echo "$BRANCH" | grep -qE "$VALID_PATTERN"; then
+  exit 0
+fi
+
+# ── Push blocked ──────────────────────────────────────────────────────────────
+
+echo ""
+echo "  ┌─────────────────────────────────────────────────────────┐"
+echo "  │                   Push Blocked 🚫                        │"
+echo "  └─────────────────────────────────────────────────────────┘"
+echo ""
+echo "  Your branch name  →  \"$BRANCH\""
+echo "  does not follow the MaHaVi branch naming convention."
+echo ""
+echo "  ──────────────────────────────────────────────────────────"
+echo "  VALID FORMATS"
+echo "  ──────────────────────────────────────────────────────────"
+echo ""
+echo "    feature/your-feature-name"
+echo "    fix/what-you-are-fixing"
+echo "    hotfix/critical-issue-name"
+echo "    release/1.0.0"
+echo "    chore/task-description"
+echo "    refactor/what-you-refactored"
+echo ""
+echo "  Protected branches (no prefix needed):"
+echo "    main  ·  master  ·  develop  ·  dev  ·  staging"
+echo ""
+echo "  ──────────────────────────────────────────────────────────"
+echo "  RULES"
+echo "  ──────────────────────────────────────────────────────────"
+echo ""
+echo "    ✓  Use one of the prefixes above followed by /"
+echo "    ✓  Lowercase letters, numbers, and hyphens only"
+echo "    ✓  No spaces, underscores, or special characters"
+echo "    ✓  Description must start and end with a letter or number"
+echo ""
+echo "  ──────────────────────────────────────────────────────────"
+echo "  HOW TO RENAME YOUR BRANCH"
+echo "  ──────────────────────────────────────────────────────────"
+echo ""
+echo "    git branch -m \"$BRANCH\" \"feature/your-new-name\""
+echo "    git push"
+echo ""
+echo "  ──────────────────────────────────────────────────────────"
+echo ""
+
+exit 1
