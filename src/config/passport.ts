@@ -44,7 +44,7 @@ async function verifyGoogleProfile(
     // re-checked on every request — here we also enforce it at OAuth time).
     const staff = await prisma.staffUser.findFirst({
       where: {
-        email,
+        email, 
         isActive: true,
         deletedAt: null,
       },
