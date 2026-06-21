@@ -47,3 +47,6 @@ export async function connectDatabase(): Promise<number> {
 export async function disconnectDatabase(): Promise<void> {
   await prisma.$disconnect();
 }
+
+// Default export for backward compatibility
+export default prisma;
