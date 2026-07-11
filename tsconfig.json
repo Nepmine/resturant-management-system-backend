@@ -32,5 +32,6 @@
       "verbatimModuleSyntax": false
     }
   },
-  "exclude": ["prisma.config.ts", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules","prisma.config.ts","dist"]
 }
