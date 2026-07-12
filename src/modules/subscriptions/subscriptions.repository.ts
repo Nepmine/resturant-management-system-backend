@@ -73,7 +73,7 @@ export const subscriptionRepository = {
     tx?: TxClient,
   ) {
     const db = tx ?? prisma;
-    return db.subscription.create({ data });
+    return db.subscription.create({ data: data as any });
   },
 
   async update(
@@ -89,6 +89,6 @@ export const subscriptionRepository = {
     tx?: TxClient,
   ) {
     const db = tx ?? prisma;
-    return db.subscription.update({ where: { id }, data });
+    return db.subscription.update({ where: { id }, data: data as any });
   },
 };

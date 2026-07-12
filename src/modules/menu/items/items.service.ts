@@ -18,14 +18,14 @@ function formatOption(o: {
   id: number;
   groupId: number;
   name: string;
-  priceModifier: number;
+  priceModifier: number | { toNumber(): number };
   sortOrder: number;
 }): OptionDto {
   return {
     id: o.id,
     groupId: o.groupId,
     name: o.name,
-    priceModifier: Number(o.priceModifier),
+    priceModifier: typeof o.priceModifier === 'object' ? o.priceModifier.toNumber() : Number(o.priceModifier),
     sortOrder: o.sortOrder,
   };
 }
@@ -40,7 +40,7 @@ function formatGroup(g: {
     id: number;
     groupId: number;
     name: string;
-    priceModifier: number;
+    priceModifier: number | { toNumber(): number };
     sortOrder: number;
   }>;
 }): OptionGroupDto {
@@ -76,7 +76,7 @@ function formatItem(
         id: number;
         groupId: number;
         name: string;
-        priceModifier: number;
+        priceModifier: number | { toNumber(): number };
         sortOrder: number;
       }>;
     }>;
@@ -134,6 +134,7 @@ export const itemService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'menu_item.created',
         actionType: 'menu_item.created',
         targetType: 'menu_item',
         targetId: item.id,
@@ -183,6 +184,7 @@ export const itemService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'menu_item.updated',
         actionType: 'menu_item.updated',
         targetType: 'menu_item',
         targetId: itemId,
@@ -218,6 +220,7 @@ export const itemService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: dto.isAvailable ? 'menu_item.enabled' : 'menu_item.disabled',
         actionType: dto.isAvailable ? 'menu_item.enabled' : 'menu_item.disabled',
         targetType: 'menu_item',
         targetId: itemId,
@@ -247,6 +250,7 @@ export const itemService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'menu_item.deleted',
         actionType: 'menu_item.deleted',
         targetType: 'menu_item',
         targetId: itemId,

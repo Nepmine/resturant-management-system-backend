@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { env } from '../../config/env';
+import { expiryDateFromDuration } from '../../utils/jwt';
 import {
   handleOAuthLogin,
   refreshTokens,
@@ -22,12 +23,12 @@ import { sendSuccess } from '../../utils/apiResponse';
 
 const REFRESH_COOKIE = 'refreshToken';
 
+// maxAge is derived from the same env var the JWT uses — they stay in sync.
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
   sameSite: 'strict' as const,
-  // 7 days in ms — matches JWT_REFRESH_EXPIRES_IN default
-  maxAge: 7 * 24 * 60 * 60 * 1000,
+  maxAge: expiryDateFromDuration(env.JWT_REFRESH_EXPIRES_IN).getTime() - Date.now(),
   path: '/api/v1/auth',
 };
 
@@ -63,11 +64,13 @@ export async function googleCallback(req: Request, res: Response): Promise<void>
   // Set refresh token in HttpOnly cookie for browser clients
   res.cookie(REFRESH_COOKIE, result.tokens.refreshToken, COOKIE_OPTIONS);
 
-  // Redirect to frontend with access token in query string.
-  // The frontend reads it once, stores in memory, then discards the URL param.
+  // Redirect to frontend with the access token in the URL *fragment* (hash),
+  // not in the query string. Fragments are never sent to servers and are not
+  // stored in access logs, browser history entries, or Referer headers.
+  // Frontend: read window.location.hash, store token in memory, then call
+  // history.replaceState to strip the hash from the URL bar.
   const redirectUrl = new URL(`${env.FRONTEND_URL}/auth/callback`);
-  redirectUrl.searchParams.set('accessToken', result.tokens.accessToken);
-  redirectUrl.searchParams.set('expiresIn', String(result.tokens.expiresIn));
+  redirectUrl.hash = `accessToken=${result.tokens.accessToken}&expiresIn=${result.tokens.expiresIn}`;
 
   res.redirect(redirectUrl.toString());
 }
@@ -143,9 +146,8 @@ export function permissions(req: Request, res: Response): void {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function extractIp(req: Request): string | null {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.socket.remoteAddress ?? null;
+  // req.ip is correct when app.set('trust proxy', 1) is configured in app.ts.
+  // It honours X-Forwarded-For only from the one trusted upstream hop, so
+  // end-clients cannot spoof it.
+  return req.ip ?? null;
 }

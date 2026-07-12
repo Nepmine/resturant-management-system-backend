@@ -6,11 +6,11 @@ import type { WaiterRequestDto } from '../../modules/waiter-requests/waiter-requ
 
 function format(r: {
   id: number; sessionId: number; type: string; status: string;
-  resolvedBy: number | null; resolvedAt: Date | null;
+  resolvedById: number | null; resolvedAt: Date | null;
   acknowledgedAt: Date | null; createdAt: Date;
 }): WaiterRequestDto {
   return { id: r.id, sessionId: r.sessionId, type: r.type, status: r.status,
-    resolvedBy: r.resolvedBy, resolvedAt: r.resolvedAt,
+    resolvedBy: r.resolvedById, resolvedAt: r.resolvedAt,
     acknowledgedAt: r.acknowledgedAt, createdAt: r.createdAt };
 }
 
@@ -29,7 +29,6 @@ export const customerWaiterRequestService = {
       const session = await tx.diningSession.findFirst({
         where: { id: member.sessionId, status: 'active' },
         select: { id: true, branchId: true },
-        include: { branch: { select: { restaurantId: true } } } as any,
       });
       if (!session) throw new AppError('Session is not active', 400, 'SESSION_NOT_ACTIVE');
 

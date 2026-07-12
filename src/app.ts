@@ -89,6 +89,10 @@ import customerWaiterRequestsRouter from './customer/waiter-requests/waiter-requ
 
 const app = express();
 
+// Trust exactly one hop (nginx / load balancer) so req.ip is the real client
+// IP and X-Forwarded-For cannot be spoofed by end clients.
+app.set('trust proxy', 1);
+
 // ── Security & parsing ────────────────────────────────────────────────────
 app.use(helmet());
 app.use(
