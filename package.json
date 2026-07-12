@@ -2,6 +2,7 @@
   "name": "mahavi-api",
   "version": "1.0.0",
   "description": "MaHaVi Restaurant SaaS API",
+  "type": "module",
   "main": "dist/server.js",
   "scripts": {
     "postinstall": "git config core.hooksPath .git-hooks && chmod +x .git-hooks/pre-push .git-hooks/pre-commit && echo \"\\n  ✓ MaHaVi git hooks installed\\n\"",
@@ -26,8 +27,8 @@
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
-    "express-rate-limit": "^7.3.1",
-    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "passport": "^0.7.0",
