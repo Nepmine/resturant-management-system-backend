@@ -19,6 +19,10 @@ import { Request, Response } from 'express';
  *   1. restaurantId from decoded JWT (authenticated staff requests)
  *   2. memberId from member JWT (customer requests)
  *   3. IP address fallback (unauthenticated / QR scan entry)
+ *
+ * req.ip is trusted because app.set('trust proxy', 1) is set in app.ts,
+ * which tells Express to read X-Forwarded-For only from one trusted upstream hop.
+ * End-clients cannot spoof it.
  */
 function keyGenerator(req: Request): string {
   if (req.user?.restaurantId) {
@@ -27,12 +31,7 @@ function keyGenerator(req: Request): string {
   if (req.member?.restaurantId) {
     return `member-tenant:${req.member.restaurantId}`;
   }
-  // Fallback: X-Forwarded-For (behind reverse proxy) or socket address
-  const forwarded = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(forwarded)
-    ? forwarded[0]
-    : (forwarded?.split(',')[0].trim() ?? req.socket.remoteAddress ?? 'unknown');
-  return `ip:${ip}`;
+  return `ip:${req.ip ?? 'unknown'}`;
 }
 
 // ── Standard error response ────────────────────────────────────────────────────
@@ -70,14 +69,7 @@ export const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  // Always key by IP for auth — restaurantId not available at login time
-  keyGenerator: (req) => {
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = Array.isArray(forwarded)
-      ? forwarded[0]
-      : (forwarded?.split(',')[0].trim() ?? req.socket.remoteAddress ?? 'unknown');
-    return `auth-ip:${ip}`;
-  },
+  keyGenerator: (req) => `auth-ip:${req.ip ?? 'unknown'}`,
   handler: rateLimitHandler,
 });
 
@@ -91,13 +83,7 @@ export const qrScanLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = Array.isArray(forwarded)
-      ? forwarded[0]
-      : (forwarded?.split(',')[0].trim() ?? req.socket.remoteAddress ?? 'unknown');
-    return `qr-ip:${ip}`;
-  },
+  keyGenerator: (req) => `qr-ip:${req.ip ?? 'unknown'}`,
   handler: rateLimitHandler,
 });
 
@@ -111,6 +97,7 @@ export const esewaWebhookLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => `esewa-ip:${req.ip ?? 'unknown'}`,
   handler: rateLimitHandler,
 });
 

@@ -167,6 +167,7 @@ export const paymentService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'payment.refunded',
         actionType: 'payment.refunded',
         targetType: 'payment',
         targetId: original.id,

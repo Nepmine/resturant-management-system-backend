@@ -31,6 +31,8 @@ if (env.NODE_ENV !== 'production') {
   global.__prisma = prisma;
 }
 
+export default prisma;
+
 /**
  * Call this in server.ts to verify the DB is reachable before accepting traffic.
  * Returns the number of ms the connection attempt took.

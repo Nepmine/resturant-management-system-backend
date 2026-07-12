@@ -1,4 +1,3 @@
-import { Request } from 'express';
 import { PaginationMeta } from './apiResponse';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,18 +21,18 @@ export interface PaginationParams {
 }
 
 /**
- * Parse pagination query parameters from an Express request.
+ * Parse pagination query parameters from a query-params object (req.query).
  * Falls back to sensible defaults and caps limit at maxLimit.
  *
  * Usage:
- *   const { skip, take, page, limit } = parsePagination(req);
+ *   const { skip, take, page, limit } = parsePagination(req.query);
  *   const items = await prisma.order.findMany({ skip, take, ... });
  *   const total = await prisma.order.count({ ... });
- *   sendSuccess(res, items, 200, buildMeta(page, limit, total));
+ *   sendSuccess(res, items, 200, buildMeta(total, skip, take));
  */
-export function parsePagination(req: Request): PaginationParams {
-  const rawPage = parseInt(String(req.query.page ?? ''), 10);
-  const rawLimit = parseInt(String(req.query.limit ?? ''), 10);
+export function parsePagination(query: Record<string, unknown>): PaginationParams {
+  const rawPage = parseInt(String(query.page ?? ''), 10);
+  const rawLimit = parseInt(String(query.limit ?? ''), 10);
 
   const page = Number.isFinite(rawPage) && rawPage > 0
     ? rawPage
@@ -76,8 +75,8 @@ export function buildMeta(
  * Returns a Date if valid, undefined otherwise.
  * Used by polling endpoints on orders, sessions, payments, and waiter requests.
  */
-export function parseUpdatedAfter(req: Request): Date | undefined {
-  const raw = req.query.updatedAfter;
+export function parseUpdatedAfter(query: Record<string, unknown>): Date | undefined {
+  const raw = query.updatedAfter;
   if (typeof raw !== 'string' || !raw) return undefined;
   const d = new Date(raw);
   return isNaN(d.getTime()) ? undefined : d;

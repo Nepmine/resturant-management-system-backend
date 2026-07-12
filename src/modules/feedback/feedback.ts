@@ -86,7 +86,7 @@ const feedbackService = {
     }
 
     const fb = await prisma.customerFeedback.create({
-      data: { sessionId, rating: dto.rating, comment: dto.comment ?? null },
+      data: { sessionId, branchId, rating: dto.rating, comment: dto.comment ?? null },
     });
     return format(fb);
   },

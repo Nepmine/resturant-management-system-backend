@@ -52,12 +52,12 @@ export const dashboardService = {
       // Pending waiter calls (live)
       prisma.waiterRequest.count({
         where: {
-          session: { branchId },
+          branchId,
           status: { in: ['pending', 'acknowledged'] },
         },
       }),
       // Revenue + orders today from snapshot table (§D17: reads snapshot, never raw orders)
-      prisma.dailyBranchMetrics.findFirst({
+      prisma.dailyBranchMetric.findFirst({
         where: { branchId, snapshotDate: new Date(today) },
         select: { totalRevenue: true, totalOrders: true },
       }),
@@ -104,7 +104,7 @@ export const dashboardService = {
     if (!branch) throw new AppError('Branch not found', 404, 'NOT_FOUND');
 
     const today = new Date().toISOString().slice(0, 10);
-    const snapshot = await prisma.dailyBranchMetrics.findFirst({
+    const snapshot = await prisma.dailyBranchMetric.findFirst({
       where: { branchId, snapshotDate: new Date(today) },
     });
 
@@ -147,7 +147,7 @@ export const dashboardService = {
 
     const branchIds = branches.map((b) => b.id);
 
-    const snapshots = await prisma.dailyBranchMetrics.findMany({
+    const snapshots = await prisma.dailyBranchMetric.findMany({
       where: {
         branchId: { in: branchIds },
         snapshotDate: new Date(today),

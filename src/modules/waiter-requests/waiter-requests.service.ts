@@ -8,7 +8,7 @@ function format(r: {
   sessionId: number;
   type: string;
   status: string;
-  resolvedBy: number | null;
+  resolvedById: number | null;
   resolvedAt: Date | null;
   acknowledgedAt: Date | null;
   createdAt: Date;
@@ -18,7 +18,7 @@ function format(r: {
     sessionId: r.sessionId,
     type: r.type,
     status: r.status,
-    resolvedBy: r.resolvedBy,
+    resolvedBy: r.resolvedById,
     resolvedAt: r.resolvedAt,
     acknowledgedAt: r.acknowledgedAt,
     createdAt: r.createdAt,

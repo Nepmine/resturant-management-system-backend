@@ -1,4 +1,5 @@
 import prisma from '../../config/database';
+import { type Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/errorHandler';
 import { paymentRepository } from '../../modules/payments/payments.repository';
 import { buildEsewaFormParams, generateEsewaPid } from '../../modules/payments/payments.esewa';
@@ -38,7 +39,7 @@ function formatPayment(p: {
 async function computeAmountDue(
   sessionId: number,
   orderIds: number[] | undefined,
-  tx: typeof prisma,
+  tx: Prisma.TransactionClient,
 ): Promise<number> {
   // Invoice total for the scope
   const invoiceResult = await (tx as any).$queryRaw<Array<{ total: number }>>`

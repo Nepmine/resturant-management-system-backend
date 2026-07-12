@@ -84,7 +84,7 @@ export async function snapshotDailyMetrics(targetDate?: Date): Promise<void> {
           ? totalRevenue / nonCancelledOrders.length
           : null;
 
-        await tx.dailyBranchMetrics.upsert({
+        await tx.dailyBranchMetric.upsert({
           where: { branchId_snapshotDate: { branchId: branch.id, snapshotDate: new Date(dateStr) } },
           create: {
             branchId: branch.id,
@@ -134,7 +134,7 @@ export async function snapshotDailyMetrics(targetDate?: Date): Promise<void> {
 
         for (const [menuItemIdStr, stats] of Object.entries(itemAgg)) {
           const menuItemId = Number(menuItemIdStr);
-          await tx.dailyItemMetrics.upsert({
+          await tx.dailyItemMetric.upsert({
             where: {
               branchId_menuItemId_snapshotDate: {
                 branchId: branch.id,
@@ -196,7 +196,7 @@ export async function snapshotDailyMetrics(targetDate?: Date): Promise<void> {
             ? Math.round(stats.completionTimes.reduce((s, t) => s + t, 0) / stats.completionTimes.length)
             : null;
 
-          await tx.staffDailyMetrics.upsert({
+          await tx.staffDailyMetric.upsert({
             where: { staffId_snapshotDate: { staffId: staffUserId, snapshotDate: new Date(dateStr) } },
             create: {
               staffId: staffUserId,
@@ -227,3 +227,4 @@ export async function snapshotDailyMetrics(targetDate?: Date): Promise<void> {
 
   console.log(`[snapshotMetrics] Complete for ${dateStr}`);
 }
+

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { StaffRole } from '@prisma/client';
+import { AppError } from './errorHandler';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // src/middleware/authorize.ts
@@ -156,11 +157,11 @@ export function enforceStaffBranchScope(
 ): void {
   if (ROLE_HIERARCHY[user.role] >= ROLE_HIERARCHY['manager']) return;
   if (user.branchId !== resourceBranchId) {
-    throw {
-      statusCode: 403,
-      code: 'BRANCH_ACCESS_DENIED',
-      message: 'Access denied — resource belongs to a different branch',
-    };
+    throw new AppError(
+      'Access denied — resource belongs to a different branch',
+      403,
+      'BRANCH_ACCESS_DENIED',
+    );
   }
 }
 

@@ -29,7 +29,7 @@ async function assertBranch(branchId: number, restaurantId: number) {
 
 /** Fetches daily_branch_metrics rows for the given branch + date range. */
 async function getBranchSnapshots(branchId: number, from: Date, to: Date) {
-  return prisma.dailyBranchMetrics.findMany({
+  return prisma.dailyBranchMetric.findMany({
     where: {
       branchId,
       snapshotDate: { gte: new Date(toDateStr(from)), lte: new Date(toDateStr(to)) },
@@ -150,7 +150,7 @@ export const analyticsService = {
     const { from, to } = resolvePeriod(query);
     const limit = Number(query.limit ?? 10);
 
-    const rows = await prisma.dailyItemMetrics.groupBy({
+    const rows = await prisma.dailyItemMetric.groupBy({
       by: ['menuItemId'],
       where: {
         branchId,
@@ -183,7 +183,7 @@ export const analyticsService = {
     const { from, to } = resolvePeriod(query);
     const limit = Number(query.limit ?? 10);
 
-    const rows = await prisma.dailyItemMetrics.groupBy({
+    const rows = await prisma.dailyItemMetric.groupBy({
       by: ['menuItemId'],
       where: {
         branchId,
@@ -212,7 +212,7 @@ export const analyticsService = {
     await assertBranch(branchId, restaurantId);
     const { from, to } = resolvePeriod(query);
 
-    const rows = await prisma.dailyItemMetrics.groupBy({
+    const rows = await prisma.dailyItemMetric.groupBy({
       by: ['menuItemId'],
       where: {
         branchId,
@@ -275,7 +275,7 @@ export const analyticsService = {
     await assertBranch(branchId, restaurantId);
     const { from, to } = resolvePeriod(query);
 
-    const rows = await prisma.dailyBranchMetrics.findMany({
+    const rows = await prisma.dailyBranchMetric.findMany({
       where: {
         branchId,
         snapshotDate: { gte: new Date(toDateStr(from)), lte: new Date(toDateStr(to)) },
@@ -330,7 +330,7 @@ export const analyticsService = {
     await assertBranch(branchId, restaurantId);
     const { from, to } = resolvePeriod(query);
 
-    const rows = await prisma.staffDailyMetrics.groupBy({
+    const rows = await prisma.staffDailyMetric.groupBy({
       by: ['staffId'],
       where: {
         branchId,
@@ -370,7 +370,7 @@ export const analyticsService = {
       select: { id: true, name: true },
     });
 
-    const rows = await prisma.dailyBranchMetrics.groupBy({
+    const rows = await prisma.dailyBranchMetric.groupBy({
       by: ['branchId'],
       where: {
         branchId: { in: branches.map((b) => b.id) },
