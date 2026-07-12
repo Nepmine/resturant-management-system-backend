@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { StaffRole, StaffUser } from '@prisma/client';
+import { Prisma, StaffRole, StaffUser } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { env } from '../../config/env';
 import {
@@ -160,6 +160,9 @@ export async function refreshTokens(
 
   const tokenHash = hashToken(rawRefreshToken);
 
+  // SERIALIZABLE isolation prevents a race condition where two concurrent
+  // refresh requests for the same token both read revokedAt=null before
+  // either commits, resulting in two new tokens being issued for one old one.
   return prisma.$transaction(async (tx) => {
     // 2. Find the token record
     const tokenRow = await findRefreshTokenByHash(tokenHash, tx);
@@ -226,7 +229,7 @@ export async function refreshTokens(
       refreshToken: newRefreshRaw,
       expiresIn: accessTokenExpiresInSeconds(),
     };
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 // ── logout ────────────────────────────────────────────────────────────────────

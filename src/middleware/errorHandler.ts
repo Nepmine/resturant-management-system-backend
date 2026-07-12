@@ -186,13 +186,16 @@ export function globalErrorHandler(
  * Async error wrapper — eliminates try/catch boilerplate in route handlers.
  * Express 4 does not automatically catch async errors.
  *
+ * Generic over the request type so controllers narrowed to
+ * AuthenticatedStaffRequest / AuthenticatedMemberRequest are accepted.
+ *
  * Usage:
  *   router.get('/path', asyncHandler(async (req, res) => { ... }));
  */
-export function asyncHandler<T>(
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<T>,
+export function asyncHandler<R extends Request = Request>(
+  fn: (req: R, res: Response, next: NextFunction) => Promise<unknown>,
 ) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    fn(req, res, next).catch(next);
+    fn(req as R, res, next).catch(next);
   };
 }

@@ -79,7 +79,10 @@ async function verifyGoogleProfile(
           restaurant: { select: { id: true, name: true } },
         },
       });
-      return done(null, updated);
+      // The auth controller receives this as `req.user` and immediately maps
+      // it to JWT tokens — it is NOT the slim JWT payload shape that req.user
+      // carries after authenticate() middleware. The cast is intentional.
+      return done(null, updated as unknown as Express.User);
     }
 
     // Guard: if somehow a different Google ID is presented for the same email,
@@ -91,7 +94,7 @@ async function verifyGoogleProfile(
       });
     }
 
-    return done(null, staff);
+    return done(null, staff as unknown as Express.User);
   } catch (err) {
     return done(err as Error);
   }

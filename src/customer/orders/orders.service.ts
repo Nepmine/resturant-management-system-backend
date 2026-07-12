@@ -125,6 +125,7 @@ export const customerOrderService = {
       await auditLog(tx, {
         staffId: null,
         branchId: member.branchId,
+        action: 'order.placed',
         actionType: 'order.placed',
         targetType: 'order',
         targetId: order.id,

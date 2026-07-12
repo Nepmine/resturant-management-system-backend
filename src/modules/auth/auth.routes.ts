@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import crypto from 'crypto';
+import { Router, Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import { authenticate } from '../../middleware/auth';
 import { authorize } from '../../middleware/authorize';
@@ -6,6 +7,7 @@ import { resolveTenant } from '../../middleware/tenant';
 import { validate } from '../../middleware/validate';
 import { authLimiter } from '../../middleware/rateLimiter';
 import { asyncHandler } from '../../middleware/errorHandler';
+import { env } from '../../config/env';
 import { logoutSchema } from './auth.schema';
 import * as authController from './auth.controller';
 
@@ -28,28 +30,82 @@ import * as authController from './auth.controller';
 
 const router = Router();
 
+// ── OAuth CSRF protection via state cookie ────────────────────────────────────
+//
+// We use `session: false` (stateless JWT architecture), which means Passport
+// cannot use its built-in session-based state store. Instead we implement a
+// lightweight cookie-based state flow:
+//
+//   1. /google route — generate a random nonce, set it as a short-lived
+//      httpOnly cookie, and pass it to Google as the `state` query param.
+//   2. /google/callback — before Passport runs, verify that req.query.state
+//      matches the cookie, then clear the cookie.
+//
+// SameSite=Lax is required on the state cookie so that the browser sends it
+// when Google redirects back (a top-level cross-site GET).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OAUTH_STATE_COOKIE = '_oauth_state';
+
+/** Step 1: Generate state nonce, store in cookie, attach to req for passport. */
+function setOAuthState(req: Request, res: Response, next: NextFunction): void {
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax',            // lax = sent on top-level cross-site GET (redirect from Google)
+    maxAge: 5 * 60 * 1000,     // 5 minutes — enough for the OAuth round-trip
+    path: '/api/v1/auth/google',
+  });
+  (req as any)._oauthState = state;
+  next();
+}
+
+/** Step 2: Verify state nonce from cookie matches what Google returned. */
+function verifyOAuthState(req: Request, res: Response, next: NextFunction): void {
+  const cookieState: string | undefined = req.cookies?.[OAUTH_STATE_COOKIE];
+  const queryState = req.query['state'] as string | undefined;
+
+  // Always clear the state cookie — one use only.
+  res.clearCookie(OAUTH_STATE_COOKIE, { path: '/api/v1/auth/google' });
+
+  if (!cookieState || !queryState || cookieState !== queryState) {
+    res.redirect(`${env.FRONTEND_URL}/auth/error?code=INVALID_STATE`);
+    return;
+  }
+
+  next();
+}
+
 // ── GET /auth/google ──────────────────────────────────────────────────────────
 // Public — initiates the Google OAuth flow.
-// passport.authenticate redirects the browser to Google's consent screen.
+// Sets the state cookie, then passport.authenticate() appends ?state=<nonce>
+// to the Google authorization URL.
 router.get(
   '/google',
   authLimiter,
-  passport.authenticate('google', {
-    session: false,
-    scope: ['profile', 'email'],
-  }),
+  setOAuthState,
+  (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate('google', {
+      session: false,
+      scope: ['profile', 'email'],
+      state: (req as any)._oauthState,
+    })(req, res, next);
+  },
 );
 
 // ── GET /auth/google/callback ─────────────────────────────────────────────────
 // Public — Google redirects here after the user grants consent.
+// verifyOAuthState runs first (CSRF check), then Passport verifies the profile.
 // On success: Passport calls done(null, staff) → req.user is set → controller runs.
-// On failure: Passport redirects to failureRedirect with flash message.
+// On failure: Passport redirects to failureRedirect.
 router.get(
   '/google/callback',
   authLimiter,
+  verifyOAuthState,
   passport.authenticate('google', {
     session: false,
-    failureRedirect: `${process.env.FRONTEND_URL}/auth/error?code=NOT_WHITELISTED`,
+    failureRedirect: `${env.FRONTEND_URL}/auth/error?code=NOT_WHITELISTED`,
   }),
   asyncHandler(authController.googleCallback),
 );

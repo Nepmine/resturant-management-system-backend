@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { StaffRole } from '@prisma/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,12 +59,18 @@ declare global {
 // ── Convenience re-exports ─────────────────────────────────────────────────────
 // These let service files import types from one place without reaching into
 // jwt.ts for the payload shapes.
+//
+// Extending the imported `Request` (not the `Express.Request` namespace type)
+// ensures params, body, query, headers, etc. are available on the narrowed type.
 
-export type AuthenticatedStaffRequest = Express.Request & {
+export type AuthenticatedStaffRequest = Request & {
   user: NonNullable<Express.Request['user']>;
   tenant: NonNullable<Express.Request['tenant']>;
 };
 
-export type AuthenticatedMemberRequest = Express.Request & {
+export type AuthenticatedMemberRequest = Request & {
   member: NonNullable<Express.Request['member']>;
 };
+
+/** The decoded payload from the member JWT (set by memberAuth middleware). */
+export type MemberTokenPayload = NonNullable<Express.Request['member']>;

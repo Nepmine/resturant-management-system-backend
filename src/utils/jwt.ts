@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { env } from '../config/env';
 import { StaffRole } from '@prisma/client';
@@ -44,12 +44,12 @@ export function signAccessToken(payload: Omit<AccessTokenPayload, 'jti'>): strin
   return jwt.sign(
     { ...payload, jti: crypto.randomUUID() },
     env.JWT_ACCESS_SECRET,
-    { expiresIn: env.JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'] },
+    { expiresIn: env.JWT_ACCESS_EXPIRES_IN as SignOptions['expiresIn'] },
   );
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
-  return jwt.verify(token, env.JWT_ACCESS_SECRET) as AccessTokenPayload;
+  return jwt.verify(token, env.JWT_ACCESS_SECRET) as unknown as AccessTokenPayload;
 }
 
 // ── Staff Refresh Token ────────────────────────────────────────────────────────
@@ -68,14 +68,14 @@ export function generateRefreshToken(staffId: number, familyId: string): {
   const raw = jwt.sign(
     { sub: staffId, familyId, jti },
     env.JWT_REFRESH_SECRET,
-    { expiresIn: env.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn'] },
+    { expiresIn: env.JWT_REFRESH_EXPIRES_IN as SignOptions['expiresIn'] },
   );
   const hash = hashToken(raw);
   return { raw, hash, payload: { sub: staffId, familyId, jti } };
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
-  return jwt.verify(token, env.JWT_REFRESH_SECRET) as RefreshTokenPayload;
+  return jwt.verify(token, env.JWT_REFRESH_SECRET) as unknown as RefreshTokenPayload;
 }
 
 // ── Member Token (Customer) ────────────────────────────────────────────────────
@@ -86,12 +86,12 @@ export function verifyRefreshToken(token: string): RefreshTokenPayload {
  */
 export function signMemberToken(payload: MemberTokenPayload): string {
   return jwt.sign(payload, env.JWT_MEMBER_SECRET, {
-    expiresIn: env.JWT_MEMBER_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    expiresIn: env.JWT_MEMBER_EXPIRES_IN as SignOptions['expiresIn'],
   });
 }
 
 export function verifyMemberToken(token: string): MemberTokenPayload {
-  return jwt.verify(token, env.JWT_MEMBER_SECRET) as MemberTokenPayload;
+  return jwt.verify(token, env.JWT_MEMBER_SECRET) as unknown as MemberTokenPayload;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

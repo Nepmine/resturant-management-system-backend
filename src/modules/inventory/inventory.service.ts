@@ -38,12 +38,12 @@ function formatItem(i: {
 }
 
 function formatLog(l: {
-  id: number; itemId: number; changedBy: number; changeType: string;
+  id: number; itemId: number; changedById: number; changeType: string;
   quantityDelta: number | { toNumber(): number };
   note: string | null; createdAt: Date;
 }): InventoryLogDto {
   return {
-    id: l.id, itemId: l.itemId, changedBy: l.changedBy,
+    id: l.id, itemId: l.itemId, changedBy: l.changedById,
     changeType: l.changeType,
     quantityDelta: typeof l.quantityDelta === 'object'
       ? l.quantityDelta.toNumber() : Number(l.quantityDelta),

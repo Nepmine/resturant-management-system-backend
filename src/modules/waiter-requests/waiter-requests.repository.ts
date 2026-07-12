@@ -12,14 +12,11 @@ export const waiterRequestRepository = {
     const db = tx ?? prisma;
     return db.waiterRequest.findMany({
       where: {
-        session: { branchId },
+        branchId,
         ...(filters.status && { status: filters.status as any }),
         ...(filters.updatedAfter && { createdAt: { gt: filters.updatedAfter } }),
       },
       orderBy: { createdAt: 'asc' },
-      include: {
-        session: { select: { id: true, table: { select: { tableNumber: true, section: { select: { name: true } } } } } },
-      },
     });
   },
 
@@ -56,7 +53,7 @@ export const waiterRequestRepository = {
     const db = tx ?? prisma;
     return db.waiterRequest.update({
       where: { id: requestId },
-      data: { status: 'resolved', resolvedBy: staffId, resolvedAt: new Date() },
+      data: { status: 'resolved', resolvedById: staffId, resolvedAt: new Date() },
     });
   },
 };

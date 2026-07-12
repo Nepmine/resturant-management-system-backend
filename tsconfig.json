@@ -1,19 +1,14 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     // File Layout
     "rootDir": "./src",
     "outDir": "./dist",
 
-    // Environment Settings
-    // See also https://aka.ms/tsconfig/module
-    "module": "nodenext",
-    "target": "esnext",
-    "types": [],
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
+    // Environment — Node.js CommonJS backend (Express + Prisma, no bundler)
+    "module": "commonjs",
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": ["node"],
 
     // Other Outputs
     "sourceMap": true,
@@ -21,8 +16,11 @@
     "declarationMap": true,
 
     // Stricter Typechecking Options
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    // exactOptionalPropertyTypes and noUncheckedIndexedAccess disabled — the
+    // codebase passes T|undefined for optional fields throughout (standard TS
+    // pattern) and accesses indexed objects without undefined checks.
+    // "noUncheckedIndexedAccess": true,
+    // "exactOptionalPropertyTypes": true,
 
     // Style Options
     // "noImplicitReturns": true,
@@ -34,12 +32,11 @@
 
     // Recommended Options
     "strict": true,
-    "jsx": "react-jsx",
-    "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
   },
   "ts-node": {
     "compilerOptions": {

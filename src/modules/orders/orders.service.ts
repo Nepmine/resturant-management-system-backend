@@ -248,6 +248,7 @@ export const orderService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'order.confirmed',
         actionType: 'order.confirmed',
         targetType: 'order',
         targetId: orderId,
@@ -291,6 +292,7 @@ export const orderService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'order.cancelled',
         actionType: 'order.cancelled',
         targetType: 'order',
         targetId: orderId,
@@ -338,6 +340,7 @@ export const orderService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'order_item.cancelled',
         actionType: 'order_item.cancelled',
         targetType: 'order_item',
         targetId: itemId,
@@ -388,6 +391,7 @@ export const orderService = {
       await auditLog(tx, {
         staffId,
         branchId,
+        action: 'order.parcel_created',
         actionType: 'order.parcel_created',
         targetType: 'order',
         targetId: order.id,
